@@ -3,7 +3,6 @@ import axios from "../axios";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { CATEGORIES } from "../constants/categories";
-import { formatDateIndian } from "../utils/formatters";
 
 const AddProduct = () => {
   const [product, setProduct] = useState({
@@ -20,8 +19,9 @@ const AddProduct = () => {
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [validated, setValidated] = useState(false);
   const [errors, setErrors] = useState({});
+  const [generatingDesc, setGeneratingDesc] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
   const navigate = useNavigate();
 
   const handleInputChange = (e) => {
@@ -75,10 +75,94 @@ const AddProduct = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleGenerateDescription = async () => {
+    if (!product.name.trim()) {
+      toast.warning("Please enter a product name first.", { autoClose: 3000, hideProgressBar: true });
+      return;
+    }
+    if (!product.category) {
+      toast.warning("Please select a category first.", { autoClose: 3000, hideProgressBar: true });
+      return;
+    }
+
+    setGeneratingDesc(true);
+    try {
+      const response = await axios.post(
+        `/product/generate-description`,
+        null,
+        {
+          params: {
+            name: product.name,
+            category: product.category,
+          },
+        }
+      );
+      setProduct((prev) => ({ ...prev, description: response.data }));
+      if (errors.description) setErrors((prev) => ({ ...prev, description: null }));
+      toast.success("Description generated!", { autoClose: 2000, hideProgressBar: true });
+    } catch (err) {
+      toast.error("Failed to generate description. Please try again.", { autoClose: 3000, hideProgressBar: true });
+    } finally {
+      setGeneratingDesc(false);
+    }
+  };
+
+  const handleGenerateImage = async () => {
+    if (!product.name.trim()) {
+      toast.warning("Please enter a product name first.", { autoClose: 3000, hideProgressBar: true });
+      return;
+    }
+    if (!product.category) {
+      toast.warning("Please select a category first.", { autoClose: 3000, hideProgressBar: true });
+      return;
+    }
+    if (!product.description.trim()) {
+      toast.warning("Please enter a description first.", { autoClose: 3000, hideProgressBar: true });
+      return;
+    }
+
+    setGeneratingImage(true);
+    try {
+      const response = await axios.post(
+        `/product/generate-image`,
+        null,
+        {
+          params: {
+            name: product.name,
+            category: product.category,
+            description: product.description,
+          },
+          responseType: "arraybuffer",
+        }
+      );
+
+      // Convert byte[] response to a File and a preview URL
+      const blob = new Blob([response.data], { type: "image/jpeg" });
+      const file = new File([blob], "ai-generated.jpg", { type: "image/jpeg" });
+      const previewUrl = URL.createObjectURL(blob);
+
+      setImage(file);
+      setImagePreview(previewUrl);
+      if (errors.image) setErrors((prev) => ({ ...prev, image: null }));
+      toast.success("Image generated!", { autoClose: 2000, hideProgressBar: true });
+    } catch (err) {
+      // Backend returns error as a string, but responseType is arraybuffer — decode it
+      let message = "Failed to generate image. Please try again.";
+      if (err.response?.data) {
+        try {
+          message = new TextDecoder().decode(err.response.data);
+        } catch (_) {}
+      }
+      console.error("Image generation error:", message);
+      toast.error("Failed to generate image. Please try again.", { autoClose: 3000, hideProgressBar: true });
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
+
   const submitHandler = (event) => {
     event.preventDefault();
     const form = event.currentTarget;
-    setValidated(true);
     if (!validateForm() || !form.checkValidity()) {
       event.stopPropagation();
       return;
@@ -96,7 +180,7 @@ const AddProduct = () => {
       .post(`/product`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       })
-      .then((response) => {
+      .then(() => {
         toast.success("Product added successfully!", {
           position: "top-right",
           autoClose: 3000,
@@ -117,7 +201,6 @@ const AddProduct = () => {
         });
         setImage(null);
         setImagePreview(null);
-        setValidated(false);
         setErrors({});
         
         // Navigate to home after a short delay to show the success message
@@ -233,15 +316,67 @@ const AddProduct = () => {
 
                     {/* Description */}
                     <div className="col-12">
-                      <label className="form-label fw-medium" style={{ color: 'var(--gray-700)' }}>
-                        Description *
-                      </label>
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <label className="form-label fw-medium mb-0" style={{ color: 'var(--gray-700)' }}>
+                          Description *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleGenerateDescription}
+                          disabled={generatingDesc}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            padding: '0.35rem 0.85rem',
+                            fontSize: '0.8rem',
+                            fontWeight: '600',
+                            border: 'none',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: generatingDesc ? 'not-allowed' : 'pointer',
+                            background: generatingDesc
+                              ? 'var(--gray-200)'
+                              : 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                            color: generatingDesc ? 'var(--gray-500)' : 'white',
+                            boxShadow: generatingDesc ? 'none' : '0 2px 8px rgba(124,58,237,0.35)',
+                            transition: 'all 0.2s ease',
+                            letterSpacing: '0.01em',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!generatingDesc) {
+                              e.currentTarget.style.transform = 'translateY(-1px)';
+                              e.currentTarget.style.boxShadow = '0 4px 14px rgba(124,58,237,0.45)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = generatingDesc ? 'none' : '0 2px 8px rgba(124,58,237,0.35)';
+                          }}
+                        >
+                          {generatingDesc ? (
+                            <>
+                              <span
+                                className="spinner-border"
+                                role="status"
+                                aria-hidden="true"
+                                style={{ width: '0.75rem', height: '0.75rem', borderWidth: '2px' }}
+                              ></span>
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <i className="bi bi-stars"></i>
+                              AI Generate
+                            </>
+                          )}
+                        </button>
+                      </div>
                       <textarea
                         name="description"
                         className={`form-control ${errors.description ? 'is-invalid' : ''}`}
                         value={product.description}
                         onChange={handleInputChange}
-                        placeholder="Enter product description"
+                        placeholder="Enter product description or click AI Generate above"
                         rows="4"
                         style={{
                           borderColor: errors.description ? 'var(--error-color)' : 'var(--gray-300)',
@@ -402,9 +537,61 @@ const AddProduct = () => {
 
                     {/* Product Image */}
                     <div className="col-12">
-                      <label className="form-label fw-medium" style={{ color: 'var(--gray-700)' }}>
-                        Product Image *
-                      </label>
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <label className="form-label fw-medium mb-0" style={{ color: 'var(--gray-700)' }}>
+                          Product Image *
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleGenerateImage}
+                          disabled={generatingImage}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.4rem',
+                            padding: '0.35rem 0.85rem',
+                            fontSize: '0.8rem',
+                            fontWeight: '600',
+                            border: 'none',
+                            borderRadius: 'var(--radius-md)',
+                            cursor: generatingImage ? 'not-allowed' : 'pointer',
+                            background: generatingImage
+                              ? 'var(--gray-200)'
+                              : 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                            color: generatingImage ? 'var(--gray-500)' : 'white',
+                            boxShadow: generatingImage ? 'none' : '0 2px 8px rgba(124,58,237,0.35)',
+                            transition: 'all 0.2s ease',
+                            letterSpacing: '0.01em',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!generatingImage) {
+                              e.currentTarget.style.transform = 'translateY(-1px)';
+                              e.currentTarget.style.boxShadow = '0 4px 14px rgba(124,58,237,0.45)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = generatingImage ? 'none' : '0 2px 8px rgba(124,58,237,0.35)';
+                          }}
+                        >
+                          {generatingImage ? (
+                            <>
+                              <span
+                                className="spinner-border"
+                                role="status"
+                                aria-hidden="true"
+                                style={{ width: '0.75rem', height: '0.75rem', borderWidth: '2px' }}
+                              ></span>
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <i className="bi bi-stars"></i>
+                              AI Generate
+                            </>
+                          )}
+                        </button>
+                      </div>
                       <input
                         type="file"
                         className={`form-control ${errors.image ? 'is-invalid' : ''}`}
@@ -418,7 +605,7 @@ const AddProduct = () => {
                       />
                       <div className="form-text">
                         <i className="bi bi-info-circle me-1"></i>
-                        Upload a JPEG or PNG image (max 5MB)
+                        Upload a JPEG or PNG image (max 5MB) or click AI Generate above
                       </div>
                       {errors.image && (
                         <div className="invalid-feedback d-block">
