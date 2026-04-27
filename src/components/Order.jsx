@@ -2,6 +2,9 @@ import axios from '../axios';
 import React, { useEffect, useState } from 'react';
 import { formatDateIndian, formatCurrency } from '../utils/formatters';
 
+// Module-level cache — survives StrictMode remounts
+let ordersCache = null;
+
 const Order = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11,11 +14,15 @@ const Order = () => {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const response = await axios.get(`/orders`);
+        if (!ordersCache) {
+          ordersCache = axios.get(`/orders`);
+        }
+        const response = await ordersCache;
         setOrders(response.data);
         setLoading(false);
-      } catch (error) {
-        console.log(error);
+      } catch (err) {
+        ordersCache = null;
+        console.log(err);
         setError("Failed to fetch orders. Please try again later.");
         setLoading(false);
       }

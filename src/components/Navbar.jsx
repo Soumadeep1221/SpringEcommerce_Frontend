@@ -4,14 +4,17 @@ import axios from "../axios";
 import { CATEGORIES } from "../constants/categories";
 import { convertBase64ToDataURL, formatCurrency } from "../utils/formatters";
 import unplugged from "../assets/unplugged.png";
+import { useContext } from "react";
+import AppContext from "../Context/Context";
+import ChatBot from "./ChatBot";
 
-const Navbar = ({ onSelectCategory }) => {
+const Navbar = () => {
+  const { selectedCategory, setSelectedCategory } = useContext(AppContext);
   const getInitialTheme = () => {
     const storedTheme = localStorage.getItem("theme");
     return storedTheme ? storedTheme : "light-theme";
   };
   
-  const [selectedCategory, setSelectedCategory] = useState("");
   const [theme, setTheme] = useState(getInitialTheme());
   const [input, setInput] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -21,13 +24,10 @@ const Navbar = ({ onSelectCategory }) => {
   const [searchTimeout, setSearchTimeout] = useState(null);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [isNavCollapsed, setIsNavCollapsed] = useState(true);
+  const [showChat, setShowChat] = useState(false);
   
   const navbarRef = useRef(null);
   const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
 
   useEffect(() => {
     // Add click event listener to close navbar when clicking outside
@@ -43,15 +43,6 @@ const Navbar = ({ onSelectCategory }) => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
-
-  // Initial data fetch (if needed)
-  const fetchInitialData = async () => {
-    try {
-      const response = await axios.get('/products');
-    } catch (error) {
-      console.error("Error fetching initial data:", error);
-    }
-  };
 
   // Toggle navbar collapse state
   const handleNavbarToggle = () => {
@@ -133,7 +124,6 @@ const Navbar = ({ onSelectCategory }) => {
 
   const handleCategorySelect = (category) => {
     setSelectedCategory(category);
-    onSelectCategory(category);
     setShowCategoryDropdown(false);
     setIsNavCollapsed(true);
   };
@@ -163,6 +153,7 @@ const Navbar = ({ onSelectCategory }) => {
   }, [theme]);
   
   return (
+    <>
     <nav className="navbar navbar-expand-lg fixed-top shadow-sm" style={{ backgroundColor: 'white', borderBottom: '1px solid var(--gray-200)' }} ref={navbarRef}>
       <div className="container-fluid px-4">
         {/* Brand Logo */}
@@ -514,6 +505,50 @@ const Navbar = ({ onSelectCategory }) => {
         </div>
       </div>
     </nav>
+
+    {/* Floating Chat Button */}
+    <button
+      onClick={() => setShowChat((v) => !v)}
+      title="AI Assistant"
+      style={{
+        position: "fixed",
+        bottom: "1.5rem",
+        right: "1.5rem",
+        width: "56px",
+        height: "56px",
+        borderRadius: "50%",
+        border: "none",
+        background: showChat
+          ? "var(--gray-600)"
+          : "linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)",
+        color: "white",
+        boxShadow: showChat
+          ? "var(--shadow-lg)"
+          : "0 8px 25px rgba(124,58,237,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        zIndex: 1061,
+        transition: "all 0.25s ease",
+        transform: showChat ? "rotate(0deg)" : "rotate(0deg)",
+      }}
+      onMouseEnter={(e) => {
+        if (!showChat) e.currentTarget.style.transform = "scale(1.1)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "scale(1)";
+      }}
+    >
+      <i
+        className={showChat ? "bi bi-x-lg" : "bi bi-stars"}
+        style={{ fontSize: "1.3rem", transition: "all 0.2s" }}
+      ></i>
+    </button>
+
+    {/* ChatBot Panel */}
+    <ChatBot open={showChat} onClose={() => setShowChat(false)} />
+    </>
   );
 };
 

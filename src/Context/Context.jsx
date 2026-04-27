@@ -1,10 +1,12 @@
 import axios from "../axios";
-import { useState, useEffect, createContext } from "react";
+import { useState, useEffect, useRef, createContext, useCallback } from "react";
 
 const AppContext = createContext({
   data: [],
   isError: "",
   cart: [],
+  selectedCategory: "",
+  setSelectedCategory: () => {},
   addToCart: (product) => {},
   removeFromCart: (productId) => {},
   refreshData:() =>{},
@@ -12,10 +14,21 @@ const AppContext = createContext({
   updateCartItemQuantity: (productId, newQuantity) => {}
 });
 
+// Module-level cache — survives StrictMode remounts
+let productCache = null;
+
 export const AppProvider = ({ children }) => {
   const [data, setData] = useState([]);
   const [isError, setIsError] = useState("");
-  const [cart, setCart] = useState(JSON.parse(localStorage.getItem('cart')) || []);
+  const [cart, setCart] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('cart')) || [];
+    } catch {
+      return [];
+    }
+  });
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const isFirstRender = useRef(true);
 
   const addToCart = (product) => {
     const existingProductIndex = cart.findIndex((item) => item.id === product.id);
@@ -55,14 +68,21 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('cart', JSON.stringify(updatedCart));
   };
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async (force = false) => {
     try {
-      const response = await axios.get('/products');
+      // On forced refresh (e.g. after adding a product), bust the cache
+      if (force) productCache = null;
+      // Reuse in-flight or cached promise — prevents duplicate calls in StrictMode
+      if (!productCache) {
+        productCache = axios.get('/products');
+      }
+      const response = await productCache;
       setData(response.data);
     } catch (error) {
+      productCache = null;
       setIsError(error.message);
     }
-  };
+  }, []);
 
   const clearCart = () => {
     setCart([]);
@@ -81,14 +101,19 @@ export const AppProvider = ({ children }) => {
   
   useEffect(() => {
     refreshData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    // Skip first render — cart is already loaded from localStorage via useState initializer
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
   
   return (
-    <AppContext.Provider value={{ data, isError, cart, addToCart, removeFromCart, refreshData, clearCart, updateStockQuantity, updateCartItemQuantity }}>
+    <AppContext.Provider value={{ data, isError, cart, selectedCategory, setSelectedCategory, addToCart, removeFromCart, refreshData, clearCart, updateStockQuantity, updateCartItemQuantity }}>
       {children}
     </AppContext.Provider>
   );

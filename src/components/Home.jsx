@@ -5,19 +5,11 @@ import unplugged from "../assets/unplugged.png";
 import { getCategoryLabel } from "../constants/categories";
 import { convertBase64ToDataURL, formatCurrency, getStockStatus } from "../utils/formatters";
 
-const Home = ({ selectedCategory }) => {
-  const { data, isError, addToCart, refreshData, updateStockQuantity } = useContext(AppContext);
-  const [isDataFetched, setIsDataFetched] = useState(false);
+const Home = () => {
+  const { data, isError, addToCart, updateStockQuantity, selectedCategory } = useContext(AppContext);
   const [showToast, setShowToast] = useState(false);
   const [toastProduct, setToastProduct] = useState(null);
   const [addingToCart, setAddingToCart] = useState(null);
-
-  useEffect(() => {
-    if (!isDataFetched) {
-      refreshData();
-      setIsDataFetched(true);
-    }
-  }, [refreshData, isDataFetched]);
 
   useEffect(() => {
     let toastTimer;

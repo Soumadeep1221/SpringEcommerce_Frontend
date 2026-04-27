@@ -7,6 +7,9 @@ import { convertBase64ToDataURL, formatCurrency, getStockStatus } from "../utils
 import { getCategoryLabel } from "../constants/categories";
 import unplugged from "../assets/unplugged.png";
 
+// Module-level cache keyed by product id — survives StrictMode remounts
+const productDetailCache = {};
+
 const Product = () => {
   const { id } = useParams();
   const { data, addToCart, removeFromCart, refreshData, updateStockQuantity } = useContext(AppContext);
@@ -22,36 +25,26 @@ const Product = () => {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const response = await axios.get(`/product/${id}`);
+        // Reuse cached promise for this product id
+        if (!productDetailCache[id]) {
+          productDetailCache[id] = axios.get(`/product/${id}`);
+        }
+        const response = await productDetailCache[id];
         const productData = response.data;
         setProduct(productData);
         setLocalStockQuantity(productData.stockQuantity);
-        
-        // Try to fetch image
-        if (productData.imageName) {
-          try {
-            const imageResponse = await axios.get(`/product/${id}/image`, { responseType: "blob" });
-            setImageUrl(URL.createObjectURL(imageResponse.data));
-          } catch (imageError) {
-            console.error("Error fetching image:", imageError);
-            // Fallback to base64 image data if available
-            if (productData.imageData) {
-              setImageUrl(convertBase64ToDataURL(productData.imageData, unplugged));
-            } else {
-              setImageUrl(unplugged);
-            }
-          }
-        } else if (productData.imageData) {
-          // Use base64 image data directly
+
+        if (productData.imageData) {
           setImageUrl(convertBase64ToDataURL(productData.imageData, unplugged));
         } else {
           setImageUrl(unplugged);
         }
       } catch (error) {
+        delete productDetailCache[id]; // clear on error so retry works
         console.error("Error fetching product:", error);
       }
     };
-    
+
     fetchProduct();
   }, [id]);
 
@@ -82,8 +75,9 @@ const Product = () => {
     setDeleting(true);
     try {
       await axios.delete(`/product/${id}`);
+      delete productDetailCache[id]; // clear stale cache
       removeFromCart(id);
-      refreshData();
+      refreshData(true);
       
       // Show professional delete success message
       toast.success("Product deleted successfully", {

@@ -1,10 +1,12 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import axios from "../axios";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { CATEGORIES } from "../constants/categories";
+import AppContext from "../Context/Context";
 
 const AddProduct = () => {
+  const { refreshData } = useContext(AppContext);
   const [product, setProduct] = useState({
     name: "",
     brand: "",
@@ -203,8 +205,9 @@ const AddProduct = () => {
         setImagePreview(null);
         setErrors({});
         
-        // Navigate to home after a short delay to show the success message
+        // Bust cache so Home shows the new product, then navigate
         setTimeout(() => {
+          refreshData(true);
           navigate("/");
         }, 1500);
       })

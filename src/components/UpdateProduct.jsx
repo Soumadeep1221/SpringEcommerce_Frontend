@@ -16,6 +16,8 @@ const UpdateProduct = () => {
   const [imageChanged, setImageChanged] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [generatingDesc, setGeneratingDesc] = useState(false);
+  const [generatingImage, setGeneratingImage] = useState(false);
 
   const [updateProduct, setUpdateProduct] = useState({
     id: null,
@@ -73,6 +75,73 @@ const UpdateProduct = () => {
       }
     };
   }, [imagePreview]);
+
+  const handleGenerateDescription = async () => {
+    if (!updateProduct.name?.trim()) {
+      toast.warning("Please enter a product name first.", { autoClose: 3000, hideProgressBar: true });
+      return;
+    }
+    if (!updateProduct.category) {
+      toast.warning("Please select a category first.", { autoClose: 3000, hideProgressBar: true });
+      return;
+    }
+    setGeneratingDesc(true);
+    try {
+      const response = await axios.post(`/product/generate-description`, null, {
+        params: { name: updateProduct.name, category: updateProduct.category },
+      });
+      setUpdateProduct((prev) => ({ ...prev, description: response.data }));
+      if (errors.description) setErrors((prev) => ({ ...prev, description: null }));
+      toast.success("Description generated!", { autoClose: 2000, hideProgressBar: true });
+    } catch {
+      toast.error("Failed to generate description. Please try again.", { autoClose: 3000, hideProgressBar: true });
+    } finally {
+      setGeneratingDesc(false);
+    }
+  };
+
+  const handleGenerateImage = async () => {
+    if (!updateProduct.name?.trim()) {
+      toast.warning("Please enter a product name first.", { autoClose: 3000, hideProgressBar: true });
+      return;
+    }
+    if (!updateProduct.category) {
+      toast.warning("Please select a category first.", { autoClose: 3000, hideProgressBar: true });
+      return;
+    }
+    if (!updateProduct.description?.trim()) {
+      toast.warning("Please enter a description first.", { autoClose: 3000, hideProgressBar: true });
+      return;
+    }
+    setGeneratingImage(true);
+    try {
+      const response = await axios.post(`/product/generate-image`, null, {
+        params: {
+          name: updateProduct.name,
+          category: updateProduct.category,
+          description: updateProduct.description,
+        },
+        responseType: "arraybuffer",
+      });
+      const blob = new Blob([response.data], { type: "image/jpeg" });
+      const file = new File([blob], "ai-generated.jpg", { type: "image/jpeg" });
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+      setImage(file);
+      setImageChanged(true);
+      setImagePreview(URL.createObjectURL(blob));
+      if (errors.image) setErrors((prev) => ({ ...prev, image: null }));
+      toast.success("Image generated!", { autoClose: 2000, hideProgressBar: true });
+    } catch (err) {
+      let message = "Failed to generate image. Please try again.";
+      if (err.response?.data) {
+        try { message = new TextDecoder().decode(err.response.data); } catch (_) {}
+      }
+      console.error("Image generation error:", message);
+      toast.error("Failed to generate image. Please try again.", { autoClose: 3000, hideProgressBar: true });
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
 
   // ✅ Handle form submit
   const handleSubmit = async (e) => {
@@ -279,9 +348,34 @@ const UpdateProduct = () => {
 
                   {/* Description */}
                   <div className="col-12">
-                    <label className="form-label fw-medium" style={{ color: 'var(--gray-700)' }}>
-                      Description *
-                    </label>
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <label className="form-label fw-medium mb-0" style={{ color: 'var(--gray-700)' }}>
+                        Description *
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleGenerateDescription}
+                        disabled={generatingDesc}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                          padding: '0.35rem 0.85rem', fontSize: '0.8rem', fontWeight: '600',
+                          border: 'none', borderRadius: 'var(--radius-md)',
+                          cursor: generatingDesc ? 'not-allowed' : 'pointer',
+                          background: generatingDesc ? 'var(--gray-200)' : 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                          color: generatingDesc ? 'var(--gray-500)' : 'white',
+                          boxShadow: generatingDesc ? 'none' : '0 2px 8px rgba(124,58,237,0.35)',
+                          transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => { if (!generatingDesc) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(124,58,237,0.45)'; }}}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = generatingDesc ? 'none' : '0 2px 8px rgba(124,58,237,0.35)'; }}
+                      >
+                        {generatingDesc ? (
+                          <><span className="spinner-border" role="status" aria-hidden="true" style={{ width: '0.75rem', height: '0.75rem', borderWidth: '2px' }}></span>Generating...</>
+                        ) : (
+                          <><i className="bi bi-stars"></i>AI Generate</>
+                        )}
+                      </button>
+                    </div>
                     <textarea
                       className={`form-control ${errors.description ? 'is-invalid' : ''}`}
                       value={updateProduct.description}
@@ -289,6 +383,7 @@ const UpdateProduct = () => {
                       onChange={handleChange}
                       rows="4"
                       required
+                      placeholder="Enter product description or click AI Generate above"
                       style={{
                         borderColor: errors.description ? 'var(--error-color)' : 'var(--gray-300)',
                         borderRadius: 'var(--radius-md)',
@@ -434,9 +529,34 @@ const UpdateProduct = () => {
 
                   {/* ⭐ IMAGE SECTION (PROFESSIONAL UX) */}
                   <div className="col-md-6">
-                    <label className="form-label fw-medium" style={{ color: 'var(--gray-700)' }}>
-                      Product Image
-                    </label>
+                    <div className="d-flex justify-content-between align-items-center mb-2">
+                      <label className="form-label fw-medium mb-0" style={{ color: 'var(--gray-700)' }}>
+                        Product Image
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleGenerateImage}
+                        disabled={generatingImage}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                          padding: '0.35rem 0.85rem', fontSize: '0.8rem', fontWeight: '600',
+                          border: 'none', borderRadius: 'var(--radius-md)',
+                          cursor: generatingImage ? 'not-allowed' : 'pointer',
+                          background: generatingImage ? 'var(--gray-200)' : 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)',
+                          color: generatingImage ? 'var(--gray-500)' : 'white',
+                          boxShadow: generatingImage ? 'none' : '0 2px 8px rgba(124,58,237,0.35)',
+                          transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => { if (!generatingImage) { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(124,58,237,0.45)'; }}}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = generatingImage ? 'none' : '0 2px 8px rgba(124,58,237,0.35)'; }}
+                      >
+                        {generatingImage ? (
+                          <><span className="spinner-border" role="status" aria-hidden="true" style={{ width: '0.75rem', height: '0.75rem', borderWidth: '2px' }}></span>Generating...</>
+                        ) : (
+                          <><i className="bi bi-stars"></i>AI Generate</>
+                        )}
+                      </button>
+                    </div>
 
                     {imagePreview && (
                       <div className="mb-3">
