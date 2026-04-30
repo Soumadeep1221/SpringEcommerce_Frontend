@@ -11,11 +11,15 @@ const AppContext = createContext({
   removeFromCart: (productId) => {},
   refreshData:() =>{},
   updateStockQuantity: (productId, newQuantity) =>{},
+  updateProductInData: (productId, updatedFields) => {},
   updateCartItemQuantity: (productId, newQuantity) => {}
 });
 
 // Module-level cache — survives StrictMode remounts
 let productCache = null;
+
+// Exported so other components can bust the per-product cache after update/delete
+export const productDetailCache = {};
 
 export const AppProvider = ({ children }) => {
   const [data, setData] = useState([]);
@@ -98,6 +102,20 @@ export const AppProvider = ({ children }) => {
       )
     );
   };
+
+  // Optimistically update a product in the list — instant UI update without re-fetch
+  const updateProductInData = (productId, updatedFields) => {
+    setData(prevData =>
+      prevData.map(product =>
+        product.id === productId
+          ? { ...product, ...updatedFields }
+          : product
+      )
+    );
+    // Also bust caches so next navigation gets fresh data
+    productCache = null;
+    delete productDetailCache[productId];
+  };
   
   useEffect(() => {
     refreshData();
@@ -113,7 +131,7 @@ export const AppProvider = ({ children }) => {
   }, [cart]);
   
   return (
-    <AppContext.Provider value={{ data, isError, cart, selectedCategory, setSelectedCategory, addToCart, removeFromCart, refreshData, clearCart, updateStockQuantity, updateCartItemQuantity }}>
+    <AppContext.Provider value={{ data, isError, cart, selectedCategory, setSelectedCategory, addToCart, removeFromCart, refreshData, clearCart, updateStockQuantity, updateProductInData, updateCartItemQuantity }}>
       {children}
     </AppContext.Provider>
   );

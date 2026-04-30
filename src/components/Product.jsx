@@ -1,14 +1,12 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { useContext, useEffect, useState } from "react";
 import AppContext from "../Context/Context";
+import { productDetailCache } from "../Context/Context";
 import axios from "../axios";
 import { toast } from "react-toastify";
 import { convertBase64ToDataURL, formatCurrency, getStockStatus } from "../utils/formatters";
 import { getCategoryLabel } from "../constants/categories";
 import unplugged from "../assets/unplugged.png";
-
-// Module-level cache keyed by product id — survives StrictMode remounts
-const productDetailCache = {};
 
 const Product = () => {
   const { id } = useParams();

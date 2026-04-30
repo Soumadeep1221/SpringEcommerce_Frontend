@@ -1,13 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "../axios";
 import { toast } from "react-toastify";
 import { CATEGORIES } from "../constants/categories";
 import { getCategoryLabel } from "../constants/categories";
+import AppContext from "../Context/Context";
+import { productDetailCache } from "../Context/Context";
 
 const UpdateProduct = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { updateProductInData } = useContext(AppContext);
 
   const [product, setProduct] = useState({});
   const [image, setImage] = useState(null);
@@ -165,6 +168,17 @@ const UpdateProduct = () => {
       );
 
       await axios.put(`/product/${id}`, updatedProduct);
+
+      // Bust per-product cache so Product detail page shows fresh data
+      delete productDetailCache[Number(id)];
+      delete productDetailCache[String(id)];
+
+      // Optimistically update the product list in context — instant UI update
+      updateProductInData(Number(id), {
+        ...updateProduct,
+        // If image changed, clear cached imageData so it re-fetches
+        ...(imageChanged ? { imageData: null, imageName: image?.name } : {}),
+      });
 
       toast.success("Product updated successfully!", {
         position: "top-center",
